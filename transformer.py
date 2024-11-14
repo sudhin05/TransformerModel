@@ -96,7 +96,7 @@ class SelfAttention(nn.Module):
         This aligns with the idea of attention: each query position focuses on different key positions, and softmax helps distribute this focus proportionally.
       """
       #Toh sort of query ko pta chl jaata hai over time uske liye kya zyada relatable ya important hai
-      attention = torch._softmax(energy/(sqrt(self.d_model)),dim = -1)
+      attention = torch.softmax(energy/(sqrt(self.d_model)),dim = -1)
 
       #we want out to be N,q,h,d
       output = torch.einsum("nhql,nlhd->nqhd",[attention,values]).reshape(N,query_len,self.n_heads*self.d_v)
