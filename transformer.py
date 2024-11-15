@@ -125,12 +125,49 @@ class TransformerBlock(nn.Module):
       layer_norm(embedding)
     """
     self.norm1 = nn.LayerNorm(d_model)
+    """
+    
+      Pytorch containers: Sequential
+      Useful for homogeneous layer organisation
+      nn.Sequential is best suited for linear, straightforward layer stacks where layers are applied sequentially, 
+      and the output of one layer directly becomes the input of the next. It simplifies the implementation by automatically chaining operations without needing a custom forward() method. 
+      Use nn.Sequential when the model's flow is simple and fixed, such as in feed-forward networks or feature extraction pipelines in convolutional neural networks (CNNs).
+    
+      nn.Sequential is a container that automatically connects layers one after the other. When you pass an input,
+      it runs through all the layers sequentially. Internally, the forward() method of nn.Sequential iterates through all its layers and 
+      applies them in order
+
+      When you call model(input), it automatically executes:
+      input -> Linear(10, 20) -> ReLU() -> Linear(20, 30).
+
+      Why Use It:
+      If your model structure is fixed and linear (e.g., a feed-forward network), 
+      nn.Sequential keeps your code clean and avoids writing a custom forward() method.
+
+      Limitations:
+
+      You cant add conditional logic (e.g., if conditions).
+      It doesnt allow sharing layers or applying operations like concatenation or addition between layers.
+    """
     self.feed_forward = nn.Sequential(
       nn.Linear(d_model,d_model*exp_factor),
       nn.ReLU(),
       nn.Linear(d_model*exp_factor,d_model)
     )
     self.norm2 = nn.LayerNorm(d_model)
+    """
+    
+      During training, randomly zeroes some of the elements of the input tensor with probability p.
+
+      The zeroed elements are chosen independently for each forward call and are sampled from a Bernoulli distribution.
+      Each channel will be zeroed out independently on every forward call.
+
+      This has proven to be an effective technique for regularization and preventing the co-adaptation of neurons as described in the paper Improving neural networks by preventing co-adaptation of feature detectors .
+
+      Furthermore, the outputs are scaled by a factor of 1/(1-p)
+      during training. This means that during evaluation the module simply computes an identity function.
+    
+    """
     self.dropout = nn.Dropout(dropout)
 
   def forward(self,queries,keys,values,mask):
@@ -140,10 +177,92 @@ class TransformerBlock(nn.Module):
     x2 = self.dropout(self.norm2(fc + x1))
     return x2
 
-# class Encoder(nn.Module):
-#   def __init__(self,vocab_size,d_model,n_layers,n_heads,device,exp_factor,dropout,max_length):
-#     super(Encoder, self).__init__()
-#     self.d_model = d_model
+class Encoder(nn.Module):
+  #Max length required to help with the padding of the input data
+  def __init__(self,vocab_size,d_model,n_layers,n_heads,device,exp_factor,dropout,max_length):
+    super(Encoder, self).__init__()
+    self.d_model = d_model
+    self.device = device
+    self.n_layers = n_layers
+    """
+      A simple lookup table that stores embeddings of a fixed dictionary and size.
+
+      This module is often used to store word embeddings and retrieve them using indices. The input to the module is a list of indices, and the output is the corresponding word embeddings.
+      # an Embedding module containing 10 tensors of size 3
+      embedding = nn.Embedding(10, 3)
+      # a batch of 2 samples of 4 indices each
+      input = torch.LongTensor([[1, 2, 4, 5], [4, 3, 2, 9]])
+      embedding(input)
+
+
+
+      # example with padding_idx
+      embedding = nn.Embedding(10, 3, padding_idx=0)
+      input = torch.LongTensor([[0, 2, 0, 5]])
+      embedding(input)
+
+      # example of changing `pad` vector
+      padding_idx = 0
+      embedding = nn.Embedding(3, 3, padding_idx=padding_idx)
+      embedding.weight
+      with torch.no_grad():
+          embedding.weight[padding_idx] = torch.ones(3)
+      embedding.weight
+    """
+    self.embedding = nn.Embedding(vocab_size, d_model)  
+    self.position_embedding = nn.Embedding(max_length,d_model)
+    """
+      An intersting discussion regarding sequential and moduleList:
+      https://discuss.pytorch.org/t/when-should-i-use-nn-modulelist-and-when-should-i-use-nn-sequential/5463/3
+
+      How it Works:
+      nn.ModuleList stores layers in a Python list, but it does not define their execution order. 
+      Unlike nn.Sequential, you need to write the forward() method yourself to specify how these layers are used.
+
+      Why Use It:
+      Use nn.ModuleList when:
+
+      The model architecture involves loops or dynamic behavior.
+      You want full control over how and when layers are applied (e.g., RNNs or transformers with repeated blocks).
+      You need to append or modify layers dynamically during training or inference.
+      Limitations:
+
+      Layers don’t execute automatically—you must explicitly call them in forward().
+      It doesn’t support layer names like nn.ModuleDict.
+
+    """
+    self.layers = nn.ModuleList([
+      TransformerBlock(d_model,n_heads,dropout=dropout,exp_factor=exp_factor)
+    ])
+    self.dropout = nn.Dropout(dropout)
+
+  def forward(self,x,mask):
+    N,seq_len = x.shape
+    """
+      Arrange
+      Returns a 1-D tensor of size [(end-start)/step]
+      with values from the interval [start, end) taken with common difference step beginning from start.
+    
+      Expand
+      Tensor.expand(*sizes) → Tensor
+      Returns a new view of the self tensor with singleton dimensions expanded to a larger size.
+      Passing -1 as the size for a dimension means not changing the size of that dimension.
+      Tensor can be also expanded to a larger number of dimensions, and the new ones will be appended at the front. For the new dimensions, the size cannot be set to -1.
+      Expanding a tensor does not allocate new memory, but only creates a new view on the existing tensor where a dimension of size one is expanded to a larger size by setting the stride to 0. Any dimension of size 1 can be expanded to an arbitrary value without allocating new memory.
+    
+      x = torch.tensor([[1], [2], [3]])
+      x.size()
+      x.expand(3, 4)
+      x.expand(-1, 4)   # -1 means not changing the size of that dimension
+    
+    """
+    positions = torch.arange(0,seq_len).expand(N,seq_len).to(self.device)
+    out = self.dropout(self.embedding(x) + self.position_embedding(positions))
+
+    for layer in self.layers:
+      output = layer(out,out,out,mask)
+
+    return output
 
 
     
