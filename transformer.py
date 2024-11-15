@@ -140,6 +140,11 @@ class TransformerBlock(nn.Module):
     x2 = self.dropout(self.norm2(fc + x1))
     return x2
 
+# class Encoder(nn.Module):
+#   def __init__(self,vocab_size,d_model,n_layers,n_heads,device,exp_factor,dropout,max_length):
+#     super(Encoder, self).__init__()
+#     self.d_model = d_model
+
 
     
 
