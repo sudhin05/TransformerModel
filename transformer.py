@@ -105,7 +105,41 @@ class SelfAttention(nn.Module):
 
       output = self.fc(output)
       return output
+    
+class TransformerBlock(nn.Module):
+  def __init__(self,d_model,n_heads,dropout,exp_factor):
+    super(TransformerBlock,self).__init__()
+    self.attention = SelfAttention(d_model,n_heads)
+    """
+      Applies Layer Normalization over a mini-batch of inputs.
+      y = ((x-E[x])/sqrt(Var[x] + e)) * γ + β
+      This layer implements the operation as described in the paper Layer Normalization
+      The mean and standard-deviation are calculated over the last D dimensions, where D is the dimension of normalized_shape. For example, if normalized_shape is (3, 5) (a 2-dimensional shape), the mean and standard-deviation are computed over the last 2 dimensions of the input (i.e. input.mean((-2, -1))). 
+      γ and β are learnable affine transform parameters of normalized_shape if elementwise_affine is True. The standard-deviation is calculated via the biased estimator, equivalent to torch.var(input, unbiased=False).
       
+      # NLP Example
+      batch, sentence_length, embedding_dim = 20, 5, 10
+      embedding = torch.randn(batch, sentence_length, embedding_dim)
+      layer_norm = nn.LayerNorm(embedding_dim)
+      # Activate module
+      layer_norm(embedding)
+    """
+    self.norm1 = nn.LayerNorm(d_model)
+    self.feed_forward = nn.Sequential(
+      nn.Linear(d_model,d_model*exp_factor),
+      nn.ReLU(),
+      nn.Linear(d_model*exp_factor,d_model)
+    )
+    self.norm2 = nn.LayerNorm(d_model)
+    self.dropout = nn.Dropout(dropout)
+
+  def forward(self,queries,keys,values,mask):
+    attention = self.attention(queries,keys,values,mask)
+    x1 = self.dropout(self.norm1(attention+queries))
+    fc = self.feed_forward(x1)
+    x2 = self.dropout(self.norm2(fc + x1))
+    return x2
+
 
     
 
