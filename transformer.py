@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from torchinfo import summary
 from math import sqrt
 
 
@@ -230,8 +231,8 @@ class Encoder(nn.Module):
       You need to append or modify layers dynamically during training or inference.
       Limitations:
 
-      Layers don’t execute automatically—you must explicitly call them in forward().
-      It doesn’t support layer names like nn.ModuleDict.
+      Layers dont execute automatically—you must explicitly call them in forward().
+      It doesnT support layer names like nn.ModuleDict.
 
     """
     self.layers = nn.ModuleList([
@@ -307,7 +308,7 @@ class Decoder(nn.Module):
     return out
   
 class Transformer(nn.Module):
-  def __init__(self,src_vocab_size,trg_vocab_size,src_pad_idx,trg_pad_idx,d_model=256,n_layers=6,n_heads=8,device='cpu',exp_factor=4,dropout=0.1,max_length=100):
+  def __init__(self,src_vocab_size,trg_vocab_size,src_pad_idx,trg_pad_idx,d_model=512,n_layers=6,n_heads=8,device='cpu',exp_factor=4,dropout=0.1,max_length=100):
     super(Transformer, self).__init__()
     self.device = device
     self.encoder = Encoder(src_vocab_size,d_model,n_layers,n_heads,device,exp_factor,dropout,max_length)
@@ -351,9 +352,14 @@ if __name__ == "__main__":
   src_vocab_size = 10
   trg_vocab_size = 10
   model = Transformer(src_vocab_size, trg_vocab_size,src_pad_idx,trg_pad_idx).to(device)
-  out = model(x,trg[:,:-1])
-  print(trg[:,:-1])
-  print(out.shape)
+  # out = model(x,trg[:,:-1])
+  # print(trg[:,:-1].dtype)
+  # print(x.dtype)
+  # print(out.shape)
+  # print(model)
+  summary(model,[(2,9),(2,7)],dtypes = [torch.int64,torch.int64])
+
+
  
 
 
