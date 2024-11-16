@@ -43,10 +43,13 @@ class SelfAttention(nn.Module):
     keys = keys.reshape(N,key_len,self.n_heads,self.d_v)
     values = values.reshape(N,value_len,self.n_heads,self.d_v)
 
+    values = self.values(values)
+    keys = self.keys(keys)
+    queries = self.queries(queries)
     
     #Matrix multiplication methods
     #Using torch.einsum for our matrix multiplication 
-    # energy = torch.einsum("nqhd,nkhd->nhqk",[queries,keys])
+    energy = torch.einsum("nqhd,nkhd->nhqk",[queries,keys])
 
     #Or using batch matrix multiplication
     # n,h,q,d and n,h,d,k krdo Just check if both blocks work the same
@@ -65,9 +68,9 @@ class SelfAttention(nn.Module):
       res = a * bc
     """
 
-    q = queries.permute(0,2,1,3)
-    k = keys.permute(0,2,3,1)
-    energy = torch.matmul(q,k)
+    # q = queries.permute(0,2,1,3)
+    # k = keys.permute(0,2,3,1)
+    # energy = torch.matmul(q,k)
     #energy is n,h,q,k now
 
     if mask is not None:
@@ -317,6 +320,40 @@ class Transformer(nn.Module):
     src_mask = (src != self.src_pad_idx).unsqueeze(1).unsqueeze(2)
     return src_mask.to(self.device)
   
+  def make_trg_mask(self,trg):
+    N,trg_len = trg.shape
+    
+    """
+      Returns the lower triangular part of the matrix (2-D tensor) or batch of matrices input, the other elements of the result tensor out are set to 0.
+
+      The lower triangular part of the matrix is defined as the elements on and below the diagonal.
+
+      The argument diagonal controls which diagonal to consider. If diagonal = 0, all elements on and below the main diagonal are retained. 
+      A positive value includes just as many diagonals above the main diagonal, and similarly a negative value excludes just as many diagonals below the main diagonal. 
+    """
+    trg_mask = torch.tril(torch.ones((trg_len,trg_len))).expand(N,1,trg_len,trg_len)
+
+    return trg_mask.to(self.device)
+  
+  def forward(self,src, trg):
+    src_mask = self.make_src_mask(src)
+    trg_mask = self.make_trg_mask(trg)
+    enc_out = self.encoder(src, src_mask)
+    out = self.decoder(trg, enc_out, src_mask, trg_mask)
+    return out
+  
+if __name__ == "__main__":
+  device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+  x = torch.tensor([[1,5,6,2,4,8,9,3,0],[1,3,4,6,7,4,9,8,2]]).to(device)
+  trg = torch.tensor([[1,2,3,4,5,6,7,0],[1,3,4,5,6,7,8,9]]).to(device)
+  src_pad_idx = 0
+  trg_pad_idx = 0 
+  src_vocab_size = 10
+  trg_vocab_size = 10
+  model = Transformer(src_vocab_size, trg_vocab_size,src_pad_idx,trg_pad_idx).to(device)
+  out = model(x,trg[:,:-1])
+  print(trg[:,:-1])
+  print(out.shape)
  
 
 
